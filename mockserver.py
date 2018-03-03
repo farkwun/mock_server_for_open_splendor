@@ -6,6 +6,25 @@ import pdb
 from cards import CARDS
 from nobles import NOBLES
 
+from levels import LEVEL_ONE, LEVEL_TWO, LEVEL_THREE
+
+GREEN = "green"
+RED = "red"
+BLUE = "blue"
+WHITE = "white"
+BLACK = "black"
+
+LEVELS = [LEVEL_ONE, LEVEL_TWO, LEVEL_THREE]
+
+CARD_IDS = set()
+NOBLE_IDS = set()
+
+for card in CARDS.keys():
+    CARD_IDS.add(card)
+
+for noble in NOBLES.keys():
+    NOBLE_IDS.add(noble)
+
 class MockDB(object):
     def __init__(self):
         self.GAMES = {}
@@ -23,17 +42,44 @@ class MockDB(object):
         self.GAMES[new_id] = Game(username, new_id)
         return new_id
 
+class Level(object):
+    def __init__(self, id):
+        self.id = id
+        self.rowCards = []
+        self.deck = set(LEVELS[id-1])
+        self.deal()
+
+    def deal(self):
+        self.rowCards = random.sample(self.deck, 3)
+        for card in self.rowCards:
+            self.deck.remove(card)
+
+    def to_dict(self):
+        return{
+            "id": self.id,
+            "rowCards": self.rowCards
+        }
+
+
 class Game(object):
     def __init__(self, user, roomId):
         self.players = {user: Player(user)}
         self.roomId = roomId
         self.active = False
-        self.nobleList = []
-        self.levels = []
-        self.coins = {}
+        self.nobleList = random.sample(NOBLE_IDS, 3)
+        self.levels = [Level(x) for x in range(1,4)]
+        self.coins = {
+            GREEN: 7,
+            BLUE: 7,
+            RED: 7,
+            WHITE: 7,
+            BLACK: 7,
+        }
         self.roundNum = 1
         self.playOrder = [user]
         self.playIndex = 0
+
+        self.cards_left = CARD_IDS
 
     def to_dict(self):
         return {
@@ -41,7 +87,7 @@ class Game(object):
             "players" : self.create_player_object(),
             "active": self.active,
             "nobleList": self.nobleList,
-            "levels": self.levels,
+            "levels": list(map(lambda level: level.to_dict(), self.levels)),
             "coins": self.coins,
             "roundNum": self.roundNum,
             "playOrder": self.playOrder,
@@ -60,7 +106,6 @@ class Game(object):
 
     def activate(self):
         self.active = True
-
 
 class Player(object):
     ID = "id"
