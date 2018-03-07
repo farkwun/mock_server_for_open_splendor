@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, Response
 import json
 import random
 import pdb
+from functools import reduce
 
 from cards import CARDS
 from nobles import NOBLES
@@ -54,9 +55,25 @@ class Level(object):
         for card in self.rowCards:
             self.deck.remove(card)
 
+    def has_card(self, id):
+        return id in self.rowCards
+    
+    def replace(self, id):
+        for idx, card_id in enumerate(self.rowCards):
+            if card_id == id:
+                self.rowCards[idx] = self.get_card_from_deck()
+
+    def get_card_from_deck(self):
+        card_id = None
+        if self.deck:
+            [card_id] = random.sample(self.deck, 1)
+            print(card_id)
+            self.deck.remove(card_id)
+        return card_id
+
     def to_dict(self):
         return{
-            "id": self.id,
+            "id": str(self.id),
             "rowCards": self.rowCards
         }
 
@@ -66,8 +83,8 @@ class Game(object):
         self.players = {user: Player(user)}
         self.roomId = roomId
         self.active = False
-        self.nobleList = random.sample(NOBLE_IDS, 3)
-        self.levels = [Level(x) for x in range(1,4)]
+        self.nobleList = []
+        self.levels = []
         self.coins = {
             GREEN: 7,
             BLUE: 7,
@@ -80,6 +97,7 @@ class Game(object):
         self.playIndex = 0
 
         self.cards_left = CARD_IDS
+        self.winner = ""
 
     def to_dict(self):
         return {
@@ -91,7 +109,8 @@ class Game(object):
             "coins": self.coins,
             "roundNum": self.roundNum,
             "playOrder": self.playOrder,
-            "playIndex": self.playIndex
+            "playIndex": self.playIndex,
+            "winner": self.winner
         }
     
     def add_player(self, username):
@@ -106,6 +125,97 @@ class Game(object):
 
     def activate(self):
         self.active = True
+        self.nobleList = random.sample(NOBLE_IDS, 3)
+        self.levels = [Level(x) for x in reversed(range(1,4))]
+
+    def check_winner(self):
+        PRESTIGE = 0
+        NUM_CARDS = 1
+        USERNAME = 2
+        best_player = sorted(map(
+            lambda player: 
+            (
+                player.prestige,
+                len(player.cards), 
+                player.username
+            ), 
+            self.players.values()))[0]
+
+        if best_player[PRESTIGE] >= 15:
+            self.winner = best_player[USERNAME]
+
+
+    def increment_turn(self):
+        self.playIndex += 1
+        if self.playIndex >= len(self.playOrder):
+            self.roundNum += 1
+            self.playIndex = 0
+            self.check_winner()
+
+    def add_coins_to_player(self, coins, player_id):
+        player = self.players[player_id]
+        for coin in coins:
+            type = coin['type']
+            if type in player.coins:
+                player.coins[type] += 1
+            else:
+                player.coins[type] = 1
+            self.coins[type] -= 1
+        self.increment_turn()
+
+    def replenish_coins(self, cost):
+        for coin, val in cost.items():
+            self.coins[coin] += val
+    
+    def buy_card_for_player(self, card_id, player_id):
+        player = self.players[player_id]
+        player.add_card(card_id)
+        effective_cost = self.get_effective_cost(CARDS[card_id]['costs'], 
+                                                 player.get_bonuses())
+        self.remove_coins_from_player(effective_cost, player_id)
+        self.replenish_coins(effective_cost)
+        self.replace_card(card_id)
+        self.noble_check(player_id)
+        self.increment_turn()
+
+    def noble_check(self, player_id):
+        bonuses = self.players[player_id].get_bonuses()
+        for idx, noble_id in enumerate(self.nobleList):
+            costs = dict(NOBLES[noble_id]['costs'])
+            for bonus, val in bonuses.items():
+                if bonus in costs:
+                    costs[bonus] -= val
+                    if costs[bonus] <= 0:
+                        costs.pop(bonus, None)
+            if not costs:
+                self.players[player_id].add_noble(noble_id)
+                self.nobleList[idx] = None
+                return
+                
+    def get_effective_cost(self, costs, bonuses):
+        new_costs = dict(costs)
+        for cost in costs.keys():
+            if cost in bonuses:
+                new_costs[cost] = max(0, costs[cost] - bonuses[cost])
+            
+            if new_costs[cost] == 0:
+                new_costs.pop(cost, None)
+
+        return new_costs
+
+    def remove_coins_from_player(self, costs, player_id):
+        player = self.players[player_id]
+        for coin, val in costs.items():
+            print(player.coins, coin, val)
+            player.coins[coin] -= val
+            if player.coins[coin] == 0:
+                player.coins.pop(coin, None)
+
+    def replace_card(self, card_id):
+        for level in self.levels:
+            if level.has_card(card_id):
+                level.replace(card_id)
+
 
 class Player(object):
     ID = "id"
@@ -120,6 +230,22 @@ class Player(object):
         self.cards = []
         self.nobles = []
 
+    def add_noble(self, noble_id):
+        self.nobles.append(noble_id)
+        self.update_prestige()
+
+    def add_card(self, card_id):
+        self.cards.append(card_id)
+        self.update_prestige()
+
+    def update_prestige(self):
+        prestige = 0
+        for noble_id in self.nobles:
+            prestige += NOBLES[noble_id]['prestige']
+        for card_id in self.cards:
+            prestige += CARDS[card_id]['prestige']
+        self.prestige = prestige
+
     def to_dict(self):
         return {
             self.ID : self.username,
@@ -128,17 +254,58 @@ class Player(object):
             self.CARDS: self.cards,
             self.NOBLES: self.nobles,
         }
+    
+    def increment_dict_by_val(self, dict, val):
+        if val in dict:
+            dict[val] += 1
+        else:
+            dict[val] = 1
+        return dict
 
+    def get_bonuses(self):
+        return reduce(
+            lambda bonuses, card_id: 
+            self.increment_dict_by_val(bonuses, CARDS[card_id][TYPE]), 
+            self.cards, 
+            {})
+    
 #@app.route('/', methods=['GET'])
 #def index():
 #    resp = jsonify({"message": "Hello Victor"})
 #    resp.headers.add('Access-Control-Allow-Origin', 'http://localhost:8080')
 #    return resp
 
+# POST TYPES
+ACTIVATE = "activate"
+MOVE = "move"
+STASH = "stash"
+CARD = "card"
+ME = "me"
+
+def parse_request(content, games):
+    type = content[TYPE]
+    game = games[content[ROOM_ID]]
+
+    def parse_move(move):
+        player_id = move[ME]
+        if STASH in move:
+            game.add_coins_to_player(move[STASH], player_id)
+        elif CARD in move:
+            game.buy_card_for_player(move[CARD], player_id)
+        print(game.players[player_id].get_bonuses())
+        print(game.to_dict())
+
+    if type == ACTIVATE:
+        game.activate()
+    elif type == MOVE:
+        parse_move(content)
+
 app = Flask(__name__)
 
 LETTERS ='abcdefghijklmnopqrstuvwxyz'
 ID_LEN = 6
+TYPE = 'type'
+ROOM_ID = 'roomId'
 
 DB = MockDB()
 
@@ -153,8 +320,8 @@ def poll():
 def update():
     content = json.loads(request.get_data().decode(encoding='UTF-8'))
     print(content)
-    game_id = content['roomId']
-    DB.GAMES[game_id].activate()
+    game_id = content[ROOM_ID]
+    parse_request(content, DB.GAMES)
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
     resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
