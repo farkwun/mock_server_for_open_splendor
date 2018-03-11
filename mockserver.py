@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
 import json
 import random
 import pdb
@@ -110,7 +110,7 @@ class Game(object):
             "roundNum": self.roundNum,
             "playOrder": self.playOrder,
             "playIndex": self.playIndex,
-            "winner": self.winner
+            "winner": self.winner,
         }
     
     def add_player(self, username):
@@ -125,8 +125,17 @@ class Game(object):
 
     def activate(self):
         self.active = True
-        self.nobleList = random.sample(NOBLE_IDS, 3)
+        self.nobleList = random.sample(NOBLE_IDS, 3 + len(self.players) - 2)
         self.levels = [Level(x) for x in reversed(range(1,4))]
+        self.set_coins()
+
+    def set_coins(self):
+        if len(self.players) == 3:
+            for coin in self.coins:
+                self.coins[coin] -= 2
+        elif len(self.players) == 2:
+            for coin in self.coins:
+                self.coins[coin] -= 3
 
     def check_winner(self):
         PRESTIGE = 0
@@ -139,7 +148,7 @@ class Game(object):
                 len(player.cards), 
                 player.username
             ), 
-            self.players.values()))[0]
+            self.players.values()))[-1]
 
         if best_player[PRESTIGE] >= 15:
             self.winner = best_player[USERNAME]
@@ -181,6 +190,8 @@ class Game(object):
     def noble_check(self, player_id):
         bonuses = self.players[player_id].get_bonuses()
         for idx, noble_id in enumerate(self.nobleList):
+            if not noble_id:
+                continue
             costs = dict(NOBLES[noble_id]['costs'])
             for bonus, val in bonuses.items():
                 if bonus in costs:
@@ -215,7 +226,6 @@ class Game(object):
         for level in self.levels:
             if level.has_card(card_id):
                 level.replace(card_id)
-
 
 class Player(object):
     ID = "id"
@@ -299,6 +309,7 @@ def parse_request(content, games):
         game.activate()
     elif type == MOVE:
         parse_move(content)
+    game.update_check()
 
 app = Flask(__name__)
 
@@ -309,35 +320,35 @@ ROOM_ID = 'roomId'
 
 DB = MockDB()
 
-@app.route('/game', methods=['GET'])
+@app.route('/api/game', methods=['GET'])
 def poll():
     game_id = request.args.get('roomId')
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
-    resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
-@app.route('/game', methods=['POST'])
+@app.route('/api/game', methods=['POST'])
 def update():
     content = json.loads(request.get_data().decode(encoding='UTF-8'))
     print(content)
     game_id = content[ROOM_ID]
     parse_request(content, DB.GAMES)
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
-    resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
-@app.route('/join', methods=['POST'])
+@app.route('/api/join', methods=['POST'])
 def join():
     content = json.loads(request.get_data().decode(encoding='UTF-8'))
     print(content)
     game_id = content['roomId']
     new_user = content['user']
+    if len(DB.GAMES[game_id].players) >= 4 or new_user in DB.GAMES[game_id].players:
+        return 404
+
     DB.GAMES[game_id].add_player(new_user)
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
-    resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
-@app.route('/new', methods=['POST'])
+@app.route('/api/new', methods=['POST'])
 def newgame():
 #    pdb.set_trace()
     print("hELO")
@@ -345,7 +356,6 @@ def newgame():
     print(content)
     game_id = DB.add_game(content['user'])
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
-    resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
 if __name__ == "__main__":
