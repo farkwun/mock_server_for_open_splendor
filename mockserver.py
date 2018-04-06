@@ -309,7 +309,6 @@ def parse_request(content, games):
         game.activate()
     elif type == MOVE:
         parse_move(content)
-    game.update_check()
 
 app = Flask(__name__)
 
