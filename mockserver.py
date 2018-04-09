@@ -187,6 +187,25 @@ class Game(object):
         self.noble_check(player_id)
         self.increment_turn()
 
+    def buy_reserved_card_for_player(self, card_id, player_id):
+        player = self.players[player_id]
+        if card_id not in player.reserved:
+            return
+        player.add_card(card_id)
+        effective_cost = self.get_effective_cost(CARDS[card_id]['costs'], 
+                                                 player.get_bonuses())
+        self.remove_coins_from_player(effective_cost, player_id)
+        self.replenish_coins(effective_cost)
+        player.remove_reserved(card_id)
+        self.noble_check(player_id)
+        self.increment_turn()
+
+    def reserve_card_for_player(self, card_id, player_id):
+        player = self.players[player_id]
+        player.reserve_card(card_id)
+        self.replace_card(card_id)
+        self.increment_turn()
+
     def noble_check(self, player_id):
         bonuses = self.players[player_id].get_bonuses()
         for idx, noble_id in enumerate(self.nobleList):
@@ -232,12 +251,14 @@ class Player(object):
     PRESTIGE = "prestige"
     COINS = "coins"
     CARDS = "cards"
+    RESERVED = "reserved"
     NOBLES = "nobles"
     def __init__(self, username):
         self.username = username
         self.prestige = 0
         self.coins = {}
         self.cards = []
+        self.reserved = []
         self.nobles = []
 
     def add_noble(self, noble_id):
@@ -247,6 +268,14 @@ class Player(object):
     def add_card(self, card_id):
         self.cards.append(card_id)
         self.update_prestige()
+
+    def reserve_card(self, card_id):
+        self.reserved.append(card_id)
+
+    def remove_reserved(self, card_id):
+        print("Removing card: " + card_id, self.reserved)
+        self.reserved.remove(card_id)
+        print("Net reserved", self.reserved)
 
     def update_prestige(self):
         prestige = 0
@@ -262,6 +291,7 @@ class Player(object):
             self.PRESTIGE : self.prestige,
             self.COINS: self.coins,
             self.CARDS: self.cards,
+            self.RESERVED: self.reserved,
             self.NOBLES: self.nobles,
         }
     
@@ -292,21 +322,32 @@ STASH = "stash"
 CARD = "card"
 ME = "me"
 
+MOVE_TAKE_COINS = "take_coins"
+MOVE_BUY_CARD = "buy_card"
+MOVE_RESERVE_CARD = "reserve_card"
+MOVE_BUY_RESERVED_CARD = "buy_reserved_card"
+
 def parse_request(content, games):
     type = content[TYPE]
     game = games[content[ROOM_ID]]
 
     def parse_move(move):
         player_id = move[ME]
-        if STASH in move:
+        move_type = move[MOVE]
+        
+        if move_type == MOVE_TAKE_COINS:
             game.add_coins_to_player(move[STASH], player_id)
-        elif CARD in move:
+        elif move_type == MOVE_BUY_CARD:
             game.buy_card_for_player(move[CARD], player_id)
+        elif move_type == MOVE_RESERVE_CARD:
+            game.reserve_card_for_player(move[CARD], player_id)
+        elif move_type == MOVE_BUY_RESERVED_CARD:
+            game.buy_reserved_card_for_player(move[CARD], player_id)
+
         print(game.players[player_id].get_bonuses())
         print(game.to_dict())
 
-    if type == ACTIVATE:
-        game.activate()
+    if type == ACTIVATE: game.activate()
     elif type == MOVE:
         parse_move(content)
 
