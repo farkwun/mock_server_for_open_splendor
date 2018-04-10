@@ -134,9 +134,13 @@ class Game(object):
     def set_coins(self):
         if len(self.players) == 3:
             for coin in self.coins:
+                if coin == YELLOW:
+                    continue
                 self.coins[coin] -= 2
         elif len(self.players) == 2:
             for coin in self.coins:
+                if coin == YELLOW:
+                    continue
                 self.coins[coin] -= 3
 
     def check_winner(self):
