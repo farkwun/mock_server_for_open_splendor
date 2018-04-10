@@ -14,6 +14,7 @@ RED = "red"
 BLUE = "blue"
 WHITE = "white"
 BLACK = "black"
+YELLOW = "yellow"
 
 LEVELS = [LEVEL_ONE, LEVEL_TWO, LEVEL_THREE]
 
@@ -51,7 +52,7 @@ class Level(object):
         self.deal()
 
     def deal(self):
-        self.rowCards = random.sample(self.deck, 3)
+        self.rowCards = random.sample(self.deck, 4)
         for card in self.rowCards:
             self.deck.remove(card)
 
@@ -91,6 +92,7 @@ class Game(object):
             RED: 7,
             WHITE: 7,
             BLACK: 7,
+            YELLOW: 5,
         }
         self.roundNum = 1
         self.playOrder = [user]
@@ -172,19 +174,22 @@ class Game(object):
             self.coins[type] -= 1
         self.increment_turn()
 
-    def replenish_coins(self, cost):
-        for coin, val in cost.items():
-            self.coins[coin] += val
-    
+    def add_coins(self, coin, val):
+        self.coins[coin] += val
+
+    def add_jokers(self, val):
+        self.coins[YELLOW] += val
+
     def buy_card_for_player(self, card_id, player_id):
         player = self.players[player_id]
-        player.add_card(card_id)
+        print("Bonuses:", player.get_bonuses())
         effective_cost = self.get_effective_cost(CARDS[card_id]['costs'], 
                                                  player.get_bonuses())
+        print("Cost:", effective_cost)
         self.remove_coins_from_player(effective_cost, player_id)
-        self.replenish_coins(effective_cost)
         self.replace_card(card_id)
         self.noble_check(player_id)
+        player.add_card(card_id)
         self.increment_turn()
 
     def buy_reserved_card_for_player(self, card_id, player_id):
@@ -195,7 +200,6 @@ class Game(object):
         effective_cost = self.get_effective_cost(CARDS[card_id]['costs'], 
                                                  player.get_bonuses())
         self.remove_coins_from_player(effective_cost, player_id)
-        self.replenish_coins(effective_cost)
         player.remove_reserved(card_id)
         self.noble_check(player_id)
         self.increment_turn()
@@ -205,6 +209,9 @@ class Game(object):
         player.reserve_card(card_id)
         self.replace_card(card_id)
         self.increment_turn()
+        if (player.get_num_coins()+1) < 10 and self.coins[YELLOW] > 0:
+            self.coins[YELLOW] -= 1
+            player.add_coins(YELLOW, 1)
 
     def noble_check(self, player_id):
         bonuses = self.players[player_id].get_bonuses()
@@ -236,10 +243,21 @@ class Game(object):
     def remove_coins_from_player(self, costs, player_id):
         player = self.players[player_id]
         for coin, val in costs.items():
-            print(player.coins, coin, val)
-            player.coins[coin] -= val
-            if player.coins[coin] == 0:
-                player.coins.pop(coin, None)
+            print(costs, player.coins, coin, val)
+            joker_costs = 0
+            if coin not in player.coins:
+                joker_costs = val
+            else:
+                self.add_coins(coin, min(val, player.coins[coin]))
+                joker_costs = max(val - player.coins[coin], 0)
+                player.coins[coin] = max(player.coins[coin] - val, 0)
+                if player.coins[coin] == 0:
+                    player.coins.pop(coin, None)
+            if YELLOW in player.coins:
+                player.coins[YELLOW] -= joker_costs
+                self.add_jokers(joker_costs)
+                if player.coins[YELLOW] == 0:
+                    player.coins.pop(YELLOW, None)
 
     def replace_card(self, card_id):
         for level in self.levels:
@@ -264,6 +282,15 @@ class Player(object):
     def add_noble(self, noble_id):
         self.nobles.append(noble_id)
         self.update_prestige()
+
+    def get_num_coins(self):
+        return sum(self.coins.values())
+    
+    def add_coins(self, type, val):
+        if type in self.coins:
+            self.coins[type] += val
+        else:
+            self.coins[type] = val
 
     def add_card(self, card_id):
         self.cards.append(card_id)
