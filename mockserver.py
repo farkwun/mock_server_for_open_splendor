@@ -192,8 +192,8 @@ class Game(object):
         print("Cost:", effective_cost)
         self.remove_coins_from_player(effective_cost, player_id)
         self.replace_card(card_id)
-        self.noble_check(player_id)
         player.add_card(card_id)
+        self.noble_check(player_id)
         self.increment_turn()
 
     def buy_reserved_card_for_player(self, card_id, player_id):
