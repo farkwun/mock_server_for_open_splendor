@@ -213,7 +213,7 @@ class Game(object):
         player.reserve_card(card_id)
         self.replace_card(card_id)
         self.increment_turn()
-        if (player.get_num_coins()+1) < 10 and self.coins[YELLOW] > 0:
+        if (player.get_num_coins()+1) <= 10 and self.coins[YELLOW] > 0:
             self.coins[YELLOW] -= 1
             player.add_coins(YELLOW, 1)
 
