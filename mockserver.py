@@ -148,12 +148,12 @@ class Game(object):
         NUM_CARDS = 1
         USERNAME = 2
         best_player = sorted(map(
-            lambda player: 
+            lambda player:
             (
                 player.prestige,
-                len(player.cards), 
+                -len(player.cards),
                 player.username
-            ), 
+            ),
             self.players.values()))[-1]
 
         if best_player[PRESTIGE] >= 15:
