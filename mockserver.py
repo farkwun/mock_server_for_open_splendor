@@ -9,12 +9,12 @@ from nobles import NOBLES
 
 from levels import LEVEL_ONE, LEVEL_TWO, LEVEL_THREE
 
-GREEN = "green"
-RED = "red"
-BLUE = "blue"
-WHITE = "white"
-BLACK = "black"
-YELLOW = "yellow"
+ONYX = "onyx"
+DIAMOND = "diamond"
+SAPPHIRE = "sapphire"
+EMERALD = "emerald"
+RUBY = "ruby"
+GOLD = "gold"
 
 LEVELS = [LEVEL_ONE, LEVEL_TWO, LEVEL_THREE]
 
@@ -87,12 +87,12 @@ class Game(object):
         self.nobleList = []
         self.levels = []
         self.coins = {
-            GREEN: 7,
-            BLUE: 7,
-            RED: 7,
-            WHITE: 7,
-            BLACK: 7,
-            YELLOW: 5,
+            EMERALD: 7,
+            SAPPHIRE: 7,
+            RUBY: 7,
+            DIAMOND: 7,
+            ONYX: 7,
+            GOLD: 5,
         }
         self.roundNum = 1
         self.playOrder = [user]
@@ -134,12 +134,12 @@ class Game(object):
     def set_coins(self):
         if len(self.players) == 3:
             for coin in self.coins:
-                if coin == YELLOW:
+                if coin == GOLD:
                     continue
                 self.coins[coin] -= 2
         elif len(self.players) == 2:
             for coin in self.coins:
-                if coin == YELLOW:
+                if coin == GOLD:
                     continue
                 self.coins[coin] -= 3
 
@@ -182,7 +182,7 @@ class Game(object):
         self.coins[coin] += val
 
     def add_jokers(self, val):
-        self.coins[YELLOW] += val
+        self.coins[GOLD] += val
 
     def buy_card_for_player(self, card_id, player_id):
         player = self.players[player_id]
@@ -213,9 +213,9 @@ class Game(object):
         player.reserve_card(card_id)
         self.replace_card(card_id)
         self.increment_turn()
-        if (player.get_num_coins()+1) < 10 and self.coins[YELLOW] > 0:
-            self.coins[YELLOW] -= 1
-            player.add_coins(YELLOW, 1)
+        if (player.get_num_coins()+1) <= 10 and self.coins[GOLD] > 0:
+            self.coins[GOLD] -= 1
+            player.add_coins(GOLD, 1)
 
     def noble_check(self, player_id):
         bonuses = self.players[player_id].get_bonuses()
@@ -257,11 +257,11 @@ class Game(object):
                 player.coins[coin] = max(player.coins[coin] - val, 0)
                 if player.coins[coin] == 0:
                     player.coins.pop(coin, None)
-            if YELLOW in player.coins:
-                player.coins[YELLOW] -= joker_costs
+            if GOLD in player.coins:
+                player.coins[GOLD] -= joker_costs
                 self.add_jokers(joker_costs)
-                if player.coins[YELLOW] == 0:
-                    player.coins.pop(YELLOW, None)
+                if player.coins[GOLD] == 0:
+                    player.coins.pop(GOLD, None)
 
     def replace_card(self, card_id):
         for level in self.levels:
