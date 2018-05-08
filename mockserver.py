@@ -394,6 +394,8 @@ DB = MockDB()
 @app.route('/api/game', methods=['GET'])
 def poll():
     game_id = request.args.get('roomId')
+    if game_id not in DB.GAMES:
+        return Response(status=404)
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
     return resp
 
@@ -412,8 +414,8 @@ def join():
     print(content)
     game_id = content['roomId']
     new_user = content['user']
-    if len(DB.GAMES[game_id].players) >= 4 or new_user in DB.GAMES[game_id].players:
-        return 404
+    if game_id not in DB.GAMES or len(DB.GAMES[game_id].players) >= 4 or new_user in DB.GAMES[game_id].players:
+        return Response(status=404)
 
     DB.GAMES[game_id].add_player(new_user)
     resp = Response(json.dumps(DB.GAMES[game_id].to_dict()))
