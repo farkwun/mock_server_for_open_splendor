@@ -114,11 +114,11 @@ class Game(object):
             "playIndex": self.playIndex,
             "winner": self.winner,
         }
-    
+
     def add_player(self, username):
         self.players[username] = Player(username)
         self.playOrder.append(username)
-    
+
     def create_player_object(self):
         p_object = {}
         for username, player in self.players.items():
@@ -232,13 +232,13 @@ class Game(object):
                 self.players[player_id].add_noble(noble_id)
                 self.nobleList[idx] = None
                 return
-                
+
     def get_effective_cost(self, costs, bonuses):
         new_costs = dict(costs)
         for cost in costs.keys():
             if cost in bonuses:
                 new_costs[cost] = max(0, costs[cost] - bonuses[cost])
-            
+
             if new_costs[cost] == 0:
                 new_costs.pop(cost, None)
 
@@ -289,7 +289,7 @@ class Player(object):
 
     def get_num_coins(self):
         return sum(self.coins.values())
-    
+
     def add_coins(self, type, val):
         if type in self.coins:
             self.coins[type] += val
@@ -325,7 +325,7 @@ class Player(object):
             self.RESERVED: self.reserved,
             self.NOBLES: self.nobles,
         }
-    
+
     def increment_dict_by_val(self, dict, val):
         if val in dict:
             dict[val] += 1
@@ -335,11 +335,11 @@ class Player(object):
 
     def get_bonuses(self):
         return reduce(
-            lambda bonuses, card_id: 
-            self.increment_dict_by_val(bonuses, CARDS[card_id][TYPE]), 
-            self.cards, 
+            lambda bonuses, card_id:
+            self.increment_dict_by_val(bonuses, CARDS[card_id][TYPE]),
+            self.cards,
             {})
-    
+
 #@app.route('/', methods=['GET'])
 #def index():
 #    resp = jsonify({"message": "Hello Victor"})
@@ -365,7 +365,7 @@ def parse_request(content, games):
     def parse_move(move):
         player_id = move[ME]
         move_type = move[MOVE]
-        
+
         if move_type == MOVE_TAKE_COINS:
             game.add_coins_to_player(move[STASH], player_id)
         elif move_type == MOVE_BUY_CARD:
